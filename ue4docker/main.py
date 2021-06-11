@@ -27,16 +27,12 @@ def main():
 			sys.argv = list([arg for arg in sys.argv if arg not in ['-v', '--verbose']])
 	
 	# Verify that Docker is installed
-	installed, error = DockerUtils.installed()
-	if installed == False:
-		_exitWithError('Error: could not detect Docker daemon version. Please ensure Docker is installed.\n\nError details: {}'.format(error))
+	if DockerUtils.installed() == False:
+		_exitWithError('Error: could not detect Docker daemon version. Please ensure Docker is installed.')
 	
 	# Under Windows, verify that the host is a supported version
-	if platform.system() == 'Windows':
-		host_build = WindowsUtils.getWindowsBuild()
-		min_build = WindowsUtils.minimumRequiredBuild()
-		if host_build < min_build:
-			_exitWithError('Error: the detected build of Windows ({}) is not supported. {} or newer is required.'.format(host_build, min_build))
+	if platform.system() == 'Windows' and WindowsUtils.isSupportedWindowsVersion() == False:
+		_exitWithError('Error: the detected version of Windows ({}) is not supported. Windows 10 / Windows Server version 1607 or newer is required.'.format(platform.win32_ver()[1]))
 	
 	# Under macOS, verify that the host is a supported version
 	if platform.system() == 'Darwin' and DarwinUtils.isSupportedMacOsVersion() == False:

@@ -1,23 +1,9 @@
 # escape=`
-{% if combine %}
-FROM prerequisites as source
-{% else %}
 ARG PREREQS_TAG
 FROM adamrehn/ue4-build-prerequisites:${PREREQS_TAG}
-{% endif %}
 
-{% if not disable_all_patches %}
 # Enable verbose output for steps that patch files?
 ARG VERBOSE_OUTPUT=0
-{% endif %}
-
-{% if source_mode == "copy" %}
-
-# Copy the Unreal Engine source code from the host system
-ARG SOURCE_LOCATION
-COPY ${SOURCE_LOCATION} C:\UnrealEngine
-
-{% else %}
 
 # The git repository that we will clone
 ARG GIT_REPO=""
@@ -39,37 +25,31 @@ ENV GIT_ASKPASS=C:\git-credential-helper.bat
 
 # Clone the UE4 git repository using the host-supplied credentials
 WORKDIR C:\
-RUN git clone --progress --depth=1 -b %GIT_BRANCH% %GIT_REPO% C:\UnrealEngine
+RUN git -c http.sslVerify=false clone --progress --depth=1 -b %GIT_BRANCH% %GIT_REPO% C:\UnrealEngine
 
-{% endif %}
+# Install legacy toolchain components if we're building UE4.19
+# (This call is a no-op under newer Engine versions)
+COPY legacy-toolchain-fix.py C:\legacy-toolchain-fix.py
+RUN python C:\legacy-toolchain-fix.py
 
-{% if (not disable_all_patches) and (not disable_windows_setup_patch) %}
 # Since the UE4 prerequisites installer appears to break when newer versions
 # of the VC++ runtime are present, patch out the prereqs call in Setup.bat
 COPY patch-setup-win.py C:\patch-setup-win.py
 RUN python C:\patch-setup-win.py C:\UnrealEngine\Setup.bat %VERBOSE_OUTPUT%
-{% endif %}
 
-{% if (not disable_all_patches) and (not disable_release_patches) %}
 # Apply our bugfix patches to broken Engine releases such as 4.25.4
 # (Make sure we do this before the post-clone setup steps are run)
 COPY patch-broken-releases.py C:\patch-broken-releases.py
 RUN python C:\patch-broken-releases.py C:\UnrealEngine %VERBOSE_OUTPUT%
-{% endif %}
 
 # Run post-clone setup steps
-# (Note that the `-no-cache` flag disables caching of dependency data in `.git/ue4-gitdeps`, saving disk space)
 WORKDIR C:\UnrealEngine
-RUN Setup.bat -no-cache
+RUN Setup.bat
 
-{% if (not disable_all_patches) and (not disable_example_platform_cleanup) %}
 # Remove the sample `XXX` example platform code, since this breaks builds from 4.24.0 onwards
 # (For details of what this is, see: <https://forums.unrealengine.com/unreal-engine/announcements-and-releases/1617783-attention-platform-changes-ahead>)
-RUN rmdir /s /q C:\UnrealEngine\Engine\Platforms\XXX 2>NUL || exit 0
-{% endif %}
+RUN del /s /q C:\UnrealEngine\Engine\Platforms\XXX 2>NUL || exit 0
 
-{% if (not disable_all_patches) and (not disable_ubt_patches) %}
 # Apply our bugfix patches to UnrealBuildTool (UBT)
 COPY patch-ubt.py C:\patch-ubt.py
 RUN python C:\patch-ubt.py C:\UnrealEngine\Engine\Source\Programs\UnrealBuildTool
-{% endif %}

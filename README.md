@@ -9,7 +9,7 @@ The ue4-docker Python package contains a set of Dockerfiles and accompanying bui
 
 Key features include:
 
-- Unreal Engine 4.20.0 and newer is supported.
+- Unreal Engine 4.19.0 and newer is supported.
 - Both Windows containers and Linux containers are supported.
 - Building and packaging UE4 projects is supported.
 - Running automation tests is supported.
@@ -22,7 +22,6 @@ Resources:
 - **Package on PyPI:** <https://pypi.org/project/ue4-docker/>
 - **Related articles:** <https://adamrehn.com/articles/tag/Unreal%20Engine/>
 - **Unreal Containers community hub:** <https://unrealcontainers.com/>
-- **Development channel on the Unreal Containers Community Discord server**: <https://discord.gg/46CJg9fyJ9>
 
 
 ## Contributing
@@ -32,7 +31,7 @@ See the file [CONTRIBUTING.md](https://github.com/adamrehn/ue4-docker/blob/maste
 
 ## Legal
 
-Copyright &copy; 2018 - 2021, Adam Rehn. Licensed under the MIT License, see the file [LICENSE](https://github.com/adamrehn/ue4-docker/blob/master/LICENSE) for details.
+Copyright &copy; 2018 - 2019, Adam Rehn. Licensed under the MIT License, see the file [LICENSE](https://github.com/adamrehn/ue4-docker/blob/master/LICENSE) for details.
 
 Unreal and its logo are Epic Games' trademarks or registered trademarks in the US and elsewhere.
 

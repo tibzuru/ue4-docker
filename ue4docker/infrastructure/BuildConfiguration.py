@@ -1,7 +1,7 @@
 from .DockerUtils import DockerUtils
 from .PackageUtils import PackageUtils
 from .WindowsUtils import WindowsUtils
-import humanfriendly, json, os, platform, random
+import humanfriendly, os, platform, random
 from pkg_resources import parse_version
 
 # Import the `semver` package even when the conflicting `node-semver` package is present
@@ -12,12 +12,12 @@ DEFAULT_GIT_REPO = 'https://github.com/EpicGames/UnrealEngine.git'
 
 # The base images for Linux containers
 LINUX_BASE_IMAGES = {
-	'opengl': 'nvidia/opengl:1.0-glvnd-devel-ubuntu18.04',
+	'opengl': 'nvidia/opengl:1.0-glvnd-devel-ubuntu20.04',
 	'cudagl': {
-		'9.2':  'nvidia/cudagl:9.2-devel-ubuntu18.04',
-		'10.0': 'nvidia/cudagl:10.0-devel-ubuntu18.04',
-		'10.1': 'nvidia/cudagl:10.1-devel-ubuntu18.04',
-		'10.2': 'nvidia/cudagl:10.2-devel-ubuntu18.04'
+		'9.2':  'nvidia/cudagl:9.2-devel-ubuntu20.04',
+		'10.0': 'nvidia/cudagl:10.0-devel-ubuntu20.04',
+		'10.1': 'nvidia/cudagl:10.1-devel-ubuntu20.04',
+		'10.2': 'nvidia/cudagl:10.2-devel-ubuntu20.04'
 	}
 }
 
@@ -27,23 +27,6 @@ DEFAULT_CUDA_VERSION = '9.2'
 # The default memory limit (in GB) under Windows
 DEFAULT_MEMORY_LIMIT = 10.0
 
-class VisualStudio(object):
-	VS2017 = '2017'
-	VS2019 = '2019'
-
-	BuildNumbers = {
-		VS2017 : '15',
-		VS2019 : '16',
-	}
-
-	MinSupportedUnreal = {
-		# Unreal Engine 4.23.1 is the first that successfully builds with Visual Studio v16.3
-		# See https://github.com/EpicGames/UnrealEngine/commit/2510d4fd07a35ba5bff6ac2c7becaa6e8b7f11fa
-		#
-		# Unreal Engine 4.25 is the first that works with .NET SDK 4.7+
-		# See https://github.com/EpicGames/UnrealEngine/commit/5256eedbdef30212ab69fdf4c09e898098959683
-		VS2019 : semver.VersionInfo(4, 25)
-	}
 
 class ExcludedComponent(object):
 	'''
@@ -81,7 +64,7 @@ class BuildConfiguration(object):
 		'''
 		Registers our supported command-line arguments with the supplied argument parser
 		'''
-		parser.add_argument('release', help='UE4 release to build, in semver format (e.g. 4.20.0) or "custom" for a custom repo and branch')
+		parser.add_argument('release', help='UE4 release to build, in semver format (e.g. 4.19.0) or "custom" for a custom repo and branch')
 		parser.add_argument('--linux', action='store_true', help='Build Linux container images under Windows')
 		parser.add_argument('--rebuild', action='store_true', help='Rebuild images even if they already exist')
 		parser.add_argument('--dry-run', action='store_true', help='Print `docker build` commands instead of running them')
@@ -92,11 +75,9 @@ class BuildConfiguration(object):
 		parser.add_argument('--no-cache', action='store_true', help='Disable Docker build cache')
 		parser.add_argument('--random-memory', action='store_true', help='Use a random memory limit for Windows containers')
 		parser.add_argument('--exclude', action='append', default=[], choices=[ExcludedComponent.DDC, ExcludedComponent.Debug, ExcludedComponent.Templates], help='Exclude the specified component (can be specified multiple times to exclude multiple components)')
-		parser.add_argument('--opt', action='append', default=[], help='Set an advanced configuration option (can be specified multiple times to specify multiple options)')
 		parser.add_argument('--cuda', default=None, metavar='VERSION', help='Add CUDA support as well as OpenGL support when building Linux containers')
-		parser.add_argument('--visual-studio', default=VisualStudio.VS2017, choices=VisualStudio.BuildNumbers.keys(), help='Specify Visual Studio Build Tools version to use for Windows containers')
 		parser.add_argument('-username', default=None, help='Specify the username to use when cloning the git repository')
-		parser.add_argument('-password', default=None, help='Specify the password or access token to use when cloning the git repository')
+		parser.add_argument('-password', default=None, help='Specify the password to use when cloning the git repository')
 		parser.add_argument('-repo', default=None, help='Set the custom git repository to clone when "custom" is specified as the release value')
 		parser.add_argument('-branch', default=None, help='Set the custom branch/tag to clone when "custom" is specified as the release value')
 		parser.add_argument('-isolation', default=None, help='Set the isolation mode to use for Windows containers (process or hyperv)')
@@ -106,11 +87,8 @@ class BuildConfiguration(object):
 		parser.add_argument('-m', default=None, help='Override the default memory limit under Windows (also overrides --random-memory)')
 		parser.add_argument('-ue4cli', default=None, help='Override the default version of ue4cli installed in the ue4-full image')
 		parser.add_argument('-conan-ue4cli', default=None, help='Override the default version of conan-ue4cli installed in the ue4-full image')
-		parser.add_argument('-layout', default=None, help='Copy generated Dockerfiles to the specified directory and don\'t build the images')
-		parser.add_argument('--combine', action='store_true', help='Combine generated Dockerfiles into a single multi-stage build Dockerfile')
 		parser.add_argument('--monitor', action='store_true', help='Monitor resource usage during builds (useful for debugging)')
 		parser.add_argument('-interval', type=float, default=20.0, help='Sampling interval in seconds when resource monitoring has been enabled using --monitor (default is 20 seconds)')
-		parser.add_argument('--ignore-eol', action='store_true', help='Run builds even on EOL versions of Windows (advanced use only)')
 		parser.add_argument('--ignore-blacklist', action='store_true', help='Run builds even on blacklisted versions of Windows (advanced use only)')
 		parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output during builds (useful for debugging)')
 	
@@ -149,7 +127,7 @@ class BuildConfiguration(object):
 					raise Exception()
 				self.release = semver.format_version(ue4Version['major'], ue4Version['minor'], ue4Version['patch'])
 			except:
-				raise RuntimeError('invalid UE4 release number "{}", full semver format required (e.g. "4.20.0")'.format(self.args.release))
+				raise RuntimeError('invalid UE4 release number "{}", full semver format required (e.g. "4.19.0")'.format(self.args.release))
 			
 			# Use the default repository and the release tag for the specified version
 			self.repository = DEFAULT_GIT_REPO
@@ -169,48 +147,12 @@ class BuildConfiguration(object):
 		self.excludedComponents = set(self.args.exclude)
 		self.baseImage = None
 		self.prereqsTag = None
-		self.ignoreEOL = self.args.ignore_eol
 		self.ignoreBlacklist = self.args.ignore_blacklist
 		self.verbose = self.args.verbose
-		self.layoutDir = self.args.layout
-		self.combine = self.args.combine
 		
 		# If the user specified custom version strings for ue4cli and/or conan-ue4cli, process them
 		self.ue4cliVersion = self._processPackageVersion('ue4cli', self.args.ue4cli)
 		self.conanUe4cliVersion = self._processPackageVersion('conan-ue4cli', self.args.conan_ue4cli)
-		
-		# Process any specified advanced configuration options (which we use directly as context values for the Jinja templating system)
-		self.opts = {}
-		for o in self.args.opt:
-			if '=' in o:
-				key, value = o.split('=', 1)
-				self.opts[key.replace('-', '_')] = self._processTemplateValue(value)
-			else:
-				self.opts[o.replace('-', '_')] = True
-		
-		# If we are generating Dockerfiles then generate them for all images that have not been explicitly excluded
-		if self.layoutDir is not None:
-			self.rebuild = True
-		
-		# If we are generating Dockerfiles and combining them then set the corresponding Jinja context value
-		if self.layoutDir is not None and self.combine == True:
-			self.opts['combine'] = True
-		
-		# If the user requested an option that is only compatible with generated Dockerfiles then ensure `-layout` was specified
-		if self.layoutDir is None and self.opts.get('source_mode', 'git') != 'git':
-			raise RuntimeError('the `-layout` flag must be used when specifying a non-default value for the `source_mode` option')
-		if self.layoutDir is None and self.combine == True:
-			raise RuntimeError('the `-layout` flag must be used when specifying the `--combine` flag')
-		
-		# Verify that the value for `source_mode` is valid if specified
-		validSourceModes = ['git', 'copy']
-		if self.opts.get('source_mode', 'git') not in validSourceModes:
-			raise RuntimeError('invalid value specified for the `source_mode` option, valid values are {}'.format(validSourceModes))
-		
-		# Verify that the value for `credential_mode` is valid if specified
-		validCredentialModes = ['endpoint', 'secrets'] if self.containerPlatform == 'linux' else ['endpoint']
-		if self.opts.get('credential_mode', 'endpoint') not in validCredentialModes:
-			raise RuntimeError('invalid value specified for the `credential_mode` option, valid values are {} when building {} containers'.format(validCredentialModes, self.containerPlatform.title()))
 		
 		# Generate our flags for keeping or excluding components
 		self.exclusionFlags = [
@@ -219,8 +161,6 @@ class BuildConfiguration(object):
 			'--build-arg', 'EXCLUDE_DEBUG={}'.format(1 if ExcludedComponent.Debug in self.excludedComponents else 0),
 			'--build-arg', 'EXCLUDE_TEMPLATES={}'.format(1 if ExcludedComponent.Templates in self.excludedComponents else 0)
 		]
-
-		self.uatBuildFlags = []
 		
 		# If we're building Windows containers, generate our Windows-specific configuration settings
 		if self.containerPlatform == 'windows':
@@ -246,36 +186,24 @@ class BuildConfiguration(object):
 		hostSystem32 = os.path.join(os.environ['SystemRoot'], 'System32')
 		self.defaultDllDir = hostSysnative if os.path.exists(hostSysnative) else hostSystem32
 		self.dlldir = self.args.dlldir if self.args.dlldir is not None else self.defaultDllDir
-
-		self.visualStudio = self.args.visual_studio
-
-		if not self.custom:
-			# Check whether specified Unreal Engine release is compatible with specified Visual Studio
-			vsMinSupportedUnreal = VisualStudio.MinSupportedUnreal.get(self.visualStudio, None)
-			if vsMinSupportedUnreal is not None and semver.VersionInfo.parse(self.release) < vsMinSupportedUnreal:
-				raise RuntimeError('specified version of Unreal Engine cannot be built with Visual Studio {}, oldest supported is {}'.format(self.visualStudio, vsMinSupportedUnreal))
-
-		self.visualStudioBuildNumber = VisualStudio.BuildNumbers[self.visualStudio]
-		# See https://github.com/EpicGames/UnrealEngine/commit/72585138472785e2ee58aab9950a7260275ee2ac
-		self.uatBuildFlags += ['--build-arg', 'USE_VS2019={}'.format('true' if self.visualStudio == VisualStudio.VS2019 else 'false')]
-
+		
 		# Determine base tag for the Windows release of the host system
 		self.hostRelease = WindowsUtils.getWindowsRelease()
 		self.hostBasetag = WindowsUtils.getReleaseBaseTag(self.hostRelease)
 		
 		# Store the tag for the base Windows Server Core image
 		self.basetag = self.args.basetag if self.args.basetag is not None else self.hostBasetag
-		self.baseImage = 'mcr.microsoft.com/windows/servercore:' + self.basetag
-		self.prereqsTag = self.basetag + '-vs' + self.visualStudio
-
+		self.baseImage = 'mcr.microsoft.com/dotnet/framework/sdk:4.8-windowsservercore-' + self.basetag
+		self.prereqsTag = self.basetag
+		
 		# Verify that any user-specified base tag is valid
 		if WindowsUtils.isValidBaseTag(self.basetag) == False:
 			raise RuntimeError('unrecognised Windows Server Core base image tag "{}", supported tags are {}'.format(self.basetag, WindowsUtils.getValidBaseTags()))
-
+		
 		# Verify that any user-specified tag suffix does not collide with our base tags
 		if WindowsUtils.isValidBaseTag(self.suffix) == True:
 			raise RuntimeError('tag suffix cannot be any of the Windows Server Core base image tags: {}'.format(WindowsUtils.getValidBaseTags()))
-
+		
 		# If the user has explicitly specified an isolation mode then use it, otherwise auto-detect
 		if self.args.isolation is not None:
 			self.isolation = self.args.isolation
@@ -283,7 +211,7 @@ class BuildConfiguration(object):
 			
 			# If we are able to use process isolation mode then use it, otherwise fallback to the Docker daemon's default isolation mode
 			differentKernels = WindowsUtils.isInsiderPreview() or self.basetag != self.hostBasetag
-			hostSupportsProcess = WindowsUtils.supportsProcessIsolation()
+			hostSupportsProcess = WindowsUtils.isWindowsServer() or int(self.hostRelease) >= 1809
 			dockerSupportsProcess = parse_version(DockerUtils.version()['Version']) >= parse_version('18.09.0')
 			if not differentKernels and hostSupportsProcess and dockerSupportsProcess:
 				self.isolation = 'process'
@@ -349,21 +277,3 @@ class BuildConfiguration(object):
 		
 		# If a raw version number was specified, prefix the package name and a strict equality specifier
 		return '{}=={}'.format(package, version)
-	
-	def _processTemplateValue(self, value):
-		
-		# If the value is a boolean (either raw or represented by zero or one) then parse it
-		if value.lower() in ['true', '1']:
-			return True
-		elif value.lower() in ['false', '0']:
-			return False
-		
-		# If the value is a JSON object or array then attempt to parse it
-		if (value.startswith('{') and value.endswith('}')) or (value.startswith('[') and value.endswith(']')):
-			try:
-				return json.loads(value)
-			except:
-				print('Warning: could not parse option value "{}" as JSON, treating value as a string'.format(value))
-		
-		# Treat all other values as strings
-		return value

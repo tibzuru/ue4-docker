@@ -9,10 +9,10 @@ class DockerUtils(object):
 		Determines if Docker is installed
 		'''
 		try:
-			return (DockerUtils.version() is not None), None
+			return DockerUtils.version() is not None
 		except Exception as e:
 			logging.debug(str(e))
-			return False, e
+			return False
 	
 	@staticmethod
 	def version():
@@ -49,14 +49,6 @@ class DockerUtils(object):
 		'''
 		tagArgs = [['-t', tag] for tag in tags]
 		return ['docker', 'build'] + list(itertools.chain.from_iterable(tagArgs)) + [context] + args
-	
-	@staticmethod
-	def buildx(tags, context, args, secrets):
-		'''
-		Returns the `docker buildx` command to build an image with the BuildKit backend
-		'''
-		tagArgs = [['-t', tag] for tag in tags]
-		return ['docker', 'buildx', 'build'] + list(itertools.chain.from_iterable(tagArgs)) + [context] + ['--progress=plain'] + args + list(itertools.chain.from_iterable([['--secret', s] for s in secrets]))
 	
 	@staticmethod
 	def pull(image):
